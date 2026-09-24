@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+
+# Backend runtime artifacts
+backend/*.db
+backend/*.db-journal
+backend/*.db-wal
+backend/*.db-shm
+backend/workspaces/
+backend/evaluation/results/
+
+# Node / frontend
+node_modules/
+frontend/dist/
+frontend/.vite/
+
+# Env files
+.env
+backend/.env
+!backend/.env.example
+
+# OS / editor
+.DS_Store
+*.swp
+.vscode/
+.idea/
+
+# Test artifacts
+backend/pytest-report.xml
+.kilo/

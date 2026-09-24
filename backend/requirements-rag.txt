@@ -1,0 +1,3 @@
+# Optional. Semantic retrieval. Without this the knowledge base still works
+# using the built-in lexical scorer.
+sentence-transformers>=3.0.0

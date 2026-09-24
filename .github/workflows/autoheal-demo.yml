@@ -1,0 +1,77 @@
+name: AutoHeal Demo Pipeline
+
+# Demonstrates the whole loop against the bundled sample-repo:
+#   1. run its tests (they are seeded to fail)
+#   2. send the result to your running AutoHeal Gate
+#   3. let the gate diagnose, patch a throwaway copy, and decide the verdict
+#
+# Requires two repository secrets pointing at a reachable Gate:
+#   AUTOHEAL_GATE_URL      e.g. https://your-gate.example.com
+#   AUTOHEAL_GATE_API_KEY  issued from the dashboard under Settings > API keys
+#
+# Running the gate locally? Use a tunnel (e.g. `ngrok http 8000`) so GitHub's
+# hosted runner can reach it, or run this workflow on a self-hosted runner
+# that shares a network with the gate.
+
+on:
+  workflow_dispatch:
+    inputs:
+      scenario:
+        description: "Which sample-repo state to run"
+        type: choice
+        default: test_failure
+        options:
+          - test_failure
+          - success
+  push:
+    paths:
+      - "sample-repo/**"
+      - ".github/workflows/autoheal-demo.yml"
+
+jobs:
+  build-and-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install test dependencies
+        run: pip install pytest
+
+      - name: Run the sample repo's tests
+        id: tests
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          cd sample-repo
+          python -m pytest -q 2>&1 | tee ../test-output.log
+          echo "exit_code=$?" >> "$GITHUB_OUTPUT"
+
+      - name: Record whether CI passed
+        id: verdict
+        run: |
+          if [ "${{ steps.tests.outcome }}" = "success" ]; then
+            echo "ci_passed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ci_passed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: AutoHeal Gate
+        id: gate
+        uses: ./action
+        with:
+          gate-url: ${{ secrets.AUTOHEAL_GATE_URL }}
+          api-key: ${{ secrets.AUTOHEAL_GATE_API_KEY }}
+          ci-passed: ${{ steps.verdict.outputs.ci_passed }}
+          repo-path: ${{ github.workspace }}/sample-repo
+          failure-log-path: test-output.log
+          fail-on-hold: "false"
+
+      - name: Show the verdict
+        run: |
+          echo "Verdict: ${{ steps.gate.outputs.verdict }}"
+          echo "Reason: ${{ steps.gate.outputs.reason }}"
+          echo "Dashboard: ${{ steps.gate.outputs.dashboard-url }}"

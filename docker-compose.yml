@@ -1,0 +1,70 @@
+# AutoHeal Gate — local/self-hosted stack. Every service here is free:
+# SQLite needs no server, Ollama and Phoenix are self-hosted with no API key.
+#
+# Quick start:
+#   cp backend/.env.example backend/.env   # then fill in GitHub OAuth values
+#   docker compose up --build
+#
+# Optional extras (LLM analysis engine, tracing) are separate profiles so the
+# default `docker compose up` stays minimal:
+#   docker compose --profile llm up          # adds local Ollama
+#   docker compose --profile observability up  # adds Phoenix tracing
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile
+      args:
+        WITH_LLM: "false"
+        WITH_OBSERVABILITY: "false"
+        WITH_RAG: "false"
+    ports:
+      - "8000:8000"
+    env_file:
+      - backend/.env
+    environment:
+      DATABASE_URL: sqlite:////data/autoheal.db
+      FRONTEND_BASE_URL: http://localhost:5173
+      BACKEND_BASE_URL: http://localhost:8000
+      GITHUB_CALLBACK_URL: http://localhost:8000/api/auth/github/callback
+    volumes:
+      - autoheal-data:/data
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile.frontend
+      args:
+        VITE_API_BASE_URL: http://localhost:8000
+    ports:
+      - "5173:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+  # -------------------------------------------------------------- optional
+
+  ollama:
+    image: ollama/ollama:latest
+    profiles: ["llm"]
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-models:/root/.ollama
+    restart: unless-stopped
+
+  phoenix:
+    image: arizephoenix/phoenix:latest
+    profiles: ["observability"]
+    ports:
+      - "6006:6006"
+    volumes:
+      - phoenix-data:/mnt/data
+    restart: unless-stopped
+
+volumes:
+  autoheal-data:
+  ollama-models:
+  phoenix-data:

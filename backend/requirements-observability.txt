@@ -1,0 +1,7 @@
+# Optional. Local tracing with Arize Phoenix. Free and self-hosted.
+#   pip install -r requirements-observability.txt
+#   python -m phoenix.server.main serve      # http://localhost:6006
+opentelemetry-api==1.29.0
+opentelemetry-sdk==1.29.0
+opentelemetry-exporter-otlp-proto-http==1.29.0
+arize-phoenix>=7.0.0

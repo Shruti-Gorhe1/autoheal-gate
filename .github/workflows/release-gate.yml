@@ -1,0 +1,84 @@
+name: Reusable Release Gate
+
+# A reusable workflow other repositories can call so their own releases are
+# governed by AutoHeal Gate. Call it like:
+#
+#   jobs:
+#     gate:
+#       uses: <owner>/autoheal-gate/.github/workflows/release-gate.yml@main
+#       with:
+#         test-command: "npm test"
+#       secrets:
+#         gate-url: ${{ secrets.AUTOHEAL_GATE_URL }}
+#         gate-api-key: ${{ secrets.AUTOHEAL_GATE_API_KEY }}
+
+on:
+  workflow_call:
+    inputs:
+      test-command:
+        type: string
+        default: "python -m pytest -q"
+      working-directory:
+        type: string
+        default: "."
+      setup-python:
+        type: boolean
+        default: true
+      python-version:
+        type: string
+        default: "3.12"
+      fail-on-hold:
+        type: boolean
+        default: true
+    secrets:
+      gate-url:
+        required: true
+      gate-api-key:
+        required: true
+    outputs:
+      verdict:
+        value: ${{ jobs.gate.outputs.verdict }}
+      dashboard-url:
+        value: ${{ jobs.gate.outputs.dashboard-url }}
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    outputs:
+      verdict: ${{ steps.gate.outputs.verdict }}
+      dashboard-url: ${{ steps.gate.outputs.dashboard-url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - if: inputs.setup-python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ inputs.python-version }}
+
+      - name: Run the project's own build and tests
+        id: tests
+        continue-on-error: true
+        working-directory: ${{ inputs.working-directory }}
+        run: |
+          set -o pipefail
+          ${{ inputs.test-command }} 2>&1 | tee "$GITHUB_WORKSPACE/build-output.log"
+
+      - id: verdict
+        run: |
+          if [ "${{ steps.tests.outcome }}" = "success" ]; then
+            echo "ci_passed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ci_passed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: AutoHeal Gate
+        id: gate
+        uses: <owner>/autoheal-gate/action@main
+        with:
+          gate-url: ${{ secrets.gate-url }}
+          api-key: ${{ secrets.gate-api-key }}
+          ci-passed: ${{ steps.verdict.outputs.ci_passed }}
+          repo-path: ${{ github.workspace }}/${{ inputs.working-directory }}
+          test-command: ${{ inputs.test-command }}
+          failure-log-path: build-output.log
+          fail-on-hold: ${{ inputs.fail-on-hold }}

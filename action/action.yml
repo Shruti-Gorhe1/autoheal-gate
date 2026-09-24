@@ -1,0 +1,95 @@
+name: "AutoHeal Gate"
+description: >
+  Send a CI/CD run to an AutoHeal Gate server for diagnosis, auto-remediation
+  and a deterministic release verdict. Fails the step on BLOCK or HOLD so a
+  workflow can require this check before merging or deploying.
+author: "AutoHeal Gate"
+branding:
+  icon: "shield"
+  color: "green"
+
+inputs:
+  gate-url:
+    description: "Base URL of the AutoHeal Gate server, e.g. https://gate.example.com"
+    required: true
+  api-key:
+    description: "AutoHeal Gate CI API key (issue one from the dashboard: Settings > API keys)"
+    required: true
+  ci-passed:
+    description: "'true' if the build/test job before this action succeeded"
+    required: true
+  repo-path:
+    description: "Path to the checked-out repository, used to validate a candidate fix"
+    required: false
+    default: ${{ github.workspace }}
+  test-command:
+    description: "Command used to prove a fix. Defaults to the repository's configured command."
+    required: false
+    default: ""
+  failure-log-path:
+    description: >
+      Path to a text file containing the build/test log. If omitted and the
+      run failed, the action captures the previous step's output automatically
+      when GATE_PREVIOUS_LOG_FILE is set by a prior step, otherwise sends an
+      empty log and relies on workflow-run log retrieval on the server.
+    required: false
+    default: ""
+  workflow-run-id:
+    description: "Override the workflow run id AutoHeal downloads logs from"
+    required: false
+    default: ${{ github.run_id }}
+  policy-overrides:
+    description: "JSON object merged over the repository's policy for this call only"
+    required: false
+    default: "{}"
+  wait:
+    description: "'true' to block until a verdict is produced (recommended)"
+    required: false
+    default: "true"
+  fail-on-hold:
+    description: "'true' to fail this step when the verdict is HOLD, awaiting human review"
+    required: false
+    default: "true"
+
+outputs:
+  verdict:
+    description: "PASS, BLOCK, or HOLD"
+    value: ${{ steps.gate.outputs.verdict }}
+  run-id:
+    description: "AutoHeal Gate run id, for the dashboard URL and the decision API"
+    value: ${{ steps.gate.outputs.run-id }}
+  reason:
+    description: "Human-readable explanation of the verdict"
+    value: ${{ steps.gate.outputs.reason }}
+  dashboard-url:
+    description: "Link to the full run detail on the AutoHeal Gate dashboard"
+    value: ${{ steps.gate.outputs.dashboard-url }}
+  root-cause:
+    description: "Diagnosed root cause of the failure, when there was one"
+    value: ${{ steps.gate.outputs.root-cause }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Call AutoHeal Gate
+      id: gate
+      shell: bash
+      env:
+        GATE_URL: ${{ inputs.gate-url }}
+        GATE_API_KEY: ${{ inputs.api-key }}
+        CI_PASSED: ${{ inputs.ci-passed }}
+        REPO_PATH: ${{ inputs.repo-path }}
+        TEST_COMMAND: ${{ inputs.test-command }}
+        FAILURE_LOG_PATH: ${{ inputs.failure-log-path }}
+        WORKFLOW_RUN_ID: ${{ inputs.workflow-run-id }}
+        POLICY_OVERRIDES: ${{ inputs.policy-overrides }}
+        WAIT: ${{ inputs.wait }}
+        FAIL_ON_HOLD: ${{ inputs.fail-on-hold }}
+        GITHUB_REPOSITORY: ${{ github.repository }}
+        GITHUB_SHA: ${{ github.sha }}
+        GITHUB_REF_NAME: ${{ github.ref_name }}
+        GITHUB_EVENT_NAME: ${{ github.event_name }}
+        PR_NUMBER: ${{ github.event.pull_request.number }}
+      run: |
+        set -euo pipefail
+        python3 "${{ github.action_path }}/gate_check.py"

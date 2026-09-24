@@ -1,0 +1,6 @@
+# Optional. The LLM analysis engine. Runs against a local Ollama model, so
+# there is no API key and no per-token cost.
+#   ollama pull llama3.2
+#   pip install -r requirements-llm.txt
+google-adk>=1.0.0
+litellm>=1.55.0

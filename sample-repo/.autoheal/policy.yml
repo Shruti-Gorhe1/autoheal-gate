@@ -1,0 +1,10 @@
+# In-repo policy override. AutoHeal Gate reads this file straight from the
+# commit under test, so policy changes ride along with the code they govern
+# and show up in the same pull request review.
+policy:
+  name: sample-repo-demo
+  description: Loosened for the bundled demo so a single reviewer click shows the whole loop.
+  require_human_approval: true
+  max_changed_files: 2
+  max_changed_lines: 20
+  min_root_cause_confidence: 0.7
